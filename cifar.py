@@ -131,8 +131,11 @@ with open(name_log_txt, "a") as text_file:
     print(net, file=text_file)
     print(net_c, file=text_file)
 
-net = torch.nn.DataParallel(nn.Sequential(net,net_c)).cuda()
-cudnn.benchmark = True
+if use_cuda:
+    net = torch.nn.DataParallel(nn.Sequential(net,net_c)).cuda()
+    cudnn.benchmark = True
+else:
+    net = torch.nn.DataParallel(nn.Sequential(net,net_c))
 
 criterion_classifier = nn.CrossEntropyLoss()
 
@@ -184,8 +187,10 @@ def train_classifier(epoch,n):
                 for param in s_dict.keys():
                     diff = np.sum((s_dict[param].cpu().numpy()-net_cpu_dict[param])**2)
                     print("n: %d parameter: %s size: %s changed by %.5f" % (n,param,net_cpu_dict[param].shape,diff),file=text_file)
-
-        train_loss += loss.data[0]
+        if use_cuda:
+            train_loss += loss.data[0]
+        else:
+            train_loss += loss.data
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
@@ -216,7 +221,10 @@ def test(epoch,n,ensemble=False):
 
         loss = criterion_classifier(outputs, targets)
 
-        test_loss += loss.data[0]
+        if use_cuda:
+            test_loss += loss.data[0]
+        else:
+            test_loss += loss.data
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
